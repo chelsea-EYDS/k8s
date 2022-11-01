@@ -1,0 +1,14 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: chelsea.k8s.freshworks.club-tls
+  namespace: chelsea
+spec:
+  secretName: chelsea.k8s.freshworks.club
+  issuerRef:
+    name: letsencrypt
+    kind: ClusterIssuer
+  commonName: chelsea.k8s.freshworks.club
+  dnsNames:
+    - chelsea.k8s.freshworks.club
+  

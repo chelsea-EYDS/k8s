@@ -1,0 +1,38 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: db-config
+  labels:
+    app: db
+data:
+  POSTGRES_DB: test_db
+  POSTGRES_USER: test_user
+  # POSTGRES_PASSWORD: postgres
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: api-config
+  labels:
+    app: api
+data:
+  DB_NAME: postgres
+  DB_USER:  postgres
+  # DB_PASSWORD: test_password
+  DB_HOST: patronidemo
+  PORT: "8080"
+  DB_PORT: "5432"
+  AUTOLOAD: "true"
+  SYNCHRONIZE: "true"
+  ALLOW_EMPTY_PASSWORD: "yes"
+  PROJECT: api
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: client-config
+  labels:
+    app: client
+data:
+  REACT_APP_BASE_URL: "/api/v1"

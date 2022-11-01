@@ -1,0 +1,8 @@
+client/node_modules
+server/node_modules
+postgres/data
+config.cfg
+.env
+ca.crt
+ca.key
+oauth2-proxy.cfg

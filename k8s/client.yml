@@ -1,0 +1,39 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: client
+  namespace: chelsea
+  labels:
+    app: client
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: client
+  template:
+    metadata:
+      labels:
+        app: client
+    spec:
+      containers:
+        - name: client
+          image: eydscasandbox.azurecr.io/chelsea/client:latest
+
+          ports:
+            - containerPort: 3000
+          envFrom:
+            - configMapRef:
+                name: client-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  namespace: chelsea
+  name: client
+spec:
+  type: ClusterIP
+  ports:
+    - port: 3000
+      targetPort: 3000
+  selector:
+    app: client

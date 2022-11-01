@@ -1,0 +1,93 @@
+version: "3"
+services:
+
+  client:
+    build:
+      context: './client'
+      dockerfile: Dockerfile.dev
+    env_file: ./client/.env
+    container_name: ${PROJECT}-client
+    image: ${PROJECT}-client:${GIT_LOCAL_BRANCH}
+    command: npm run dev
+    volumes:
+      - /app/node_modules
+      - ./client:/app
+    environment:
+      CHOKIDAR_USEPOLLING: "true"
+      ALLOW_EMPTY_PASSWORD: "yes"
+  api:
+    build:
+      context: ./api
+      dockerfile: Dockerfile.dev
+    env_file: .env
+    container_name: ${PROJECT}-api
+    image: ${PROJECT}-api:${GIT_LOCAL_BRANCH}
+    command: npm run start:dev
+    volumes:
+      - /usr/src/app/node_modules
+      - ./api:/usr/src/app
+    environment:
+      DB_HOST: ${DB_HOST}
+      DB_NAME: ${DB_NAME}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      CHOKIDAR_USEPOLLING: "true"
+      ALLOW_EMPTY_PASSWORD: "yes"
+    
+  db:
+    image: postgres:13-alpine
+    container_name: db
+    restart: always
+    env_file: .env
+    environment:
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./postgres/data:/var/lib/postgresql/data   
+  proxy:
+    image: quay.io/oauth2-proxy/oauth2-proxy:v7.2.1
+    command: 
+      - --http-address=http://0.0.0.0:4180
+      - --upstream=http://nginx:80
+      - --redirect-url=http://localhost:4180/oauth2/callback
+      - --email-domain=*
+      - --provider=github
+      - --client-id=${CLIENT_ID}
+      - --client-secret=${CLIENT_SECRET}
+
+      - --cookie-httponly=false
+      - --cookie-secure=false
+      - --cookie-samesite=lax
+      - --cookie-name=_oauth2_proxy
+      - --cookie-secret=${COOKIE_SECRET}
+      - --cookie-expire=168h0m0s
+      - --set-xauthrequest=true
+      - --session-store-type=cookie
+      - --proxy-websockets=true
+      - --reverse-proxy=true
+      - --cookie-httponly=true
+      - --jwt-key=asydiaus8
+      - --pass-access-token=true
+      - --cookie-domain=http://localhost:4180
+      - --auth-logging=true
+      - --pass-user-headers=true
+      - --pass-access-token
+    ports:
+      - '4180:4180'
+    volumes:
+      - "./oauth2-proxy.cfg:/oauth2-proxy.cfg"
+    depends_on:
+      - api
+  nginx:
+    image: ${PROJECT}-nginx:${GIT_LOCAL_BRANCH}
+    build: 
+      context: './nginx'
+    depends_on:
+      - api
+      - client
+volumes:
+  db:
+    driver: local

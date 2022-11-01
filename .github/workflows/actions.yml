@@ -1,0 +1,91 @@
+name: Deploy
+on:
+  push: 
+    branches: ['main']
+  workflow_dispatch:  
+jobs:
+  check_file_changed:
+    runs-on: 'ubuntu-latest'
+    # Declare outputs for next steps
+    outputs: 
+      api_docs_changed: ${{ steps.check_file_changed.outputs.api_docs_changed }}
+      client_docs_changed:  ${{ steps.check_file_changed.outputs.client_docs_changed }}
+      nginx_docs_changed: ${{ steps.check_file_changed.outputs.nginx_docs_changed }}
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        # Checkout as many commits as needed for the diff
+        fetch-depth: 2
+        # pwsh script to check the diff in ./api, ./client, ./nginx
+    - shell: pwsh
+      id: check_file_changed
+      run: |
+        # Diff HEAD with the previous commit
+        $diff = git diff --name-only HEAD^ HEAD
+
+        # Check if a file under client/ has changed (added, modified, deleted)
+        $ClientDiff = $diff | Where-Object { $_ -match '^client/'  }
+        $HasClientDiff = $ClientDiff.Length -gt 0
+
+        $ApiDiff = $diff | Where-Object { $_ -match '^api/'  }
+        $HasApiDiff = $ApiDiff.Length -gt 0
+
+        $NginxDiff = $diff | Where-Object { $_ -match '^nginx/'  }
+        $HasNginxDiff = $NginxDiff.Length -gt 0
+
+        # Set the output named "client_docs_changed"
+        Write-Host "::set-output name=client_docs_changed::$HasClientDiff"
+
+        # Set the output named "api_docs_changed"
+        Write-Host "::set-output name=api_docs_changed::$HasApiDiff"
+
+        # Set the output named "nginx_docs_changed"
+        Write-Host "::set-output name=nginx_docs_changed::$HasNginxDiff"
+  
+  build_and_deploy:
+    runs-on: 'ubuntu-latest'
+    # provide access to previous job outputs
+    needs: [ check_file_changed]
+    steps:
+    - uses: actions/checkout@v2
+      name: Checkout Repo
+
+    - uses: azure/k8s-set-context@v2
+      name: Set-up kubernetes connection
+      with:
+        method: kubeconfig
+        kubeconfig: ${{ secrets.KUBE_CONFIG }}
+
+    - name: Login to Azure Container Registry
+      uses: docker/login-action@v2
+      with:
+        registry: eydscasandbox.azurecr.io
+        username: eydscasandbox
+        password: ${{ secrets.ACR_PASSWORD }}
+
+    - name: Build Api Image
+      if: needs.check_file_changed.outputs.api_docs_changed == 'True'
+      run: docker build --platform linux/amd64 -t eydscasandbox.azurecr.io/chelsea/api:latest ./api
+
+    - name: Push Api Image
+      if: needs.check_file_changed.outputs.api_docs_changed == 'True'
+      run: docker push eydscasandbox.azurecr.io/chelsea/api:latest
+    
+    - name: Build Client Image
+      if: needs.check_file_changed.outputs.client_docs_changed == 'True'
+      run: make build-client
+
+    - name: Push Client Image
+      if: needs.check_file_changed.outputs.client_docs_changed == 'True'
+      run: docker push eydscasandbox.azurecr.io/chelsea/client:latest
+    
+    - name: Build Nginx Image
+      if: needs.check_file_changed.outputs.nginx_docs_changed == 'True'
+      run: make build-nginx
+
+    - name: Push Nginx Image
+      if: needs.check_file_changed.outputs.nginx_docs_changed == 'True'
+      run: docker push eydscasandbox.azurecr.io/chelsea/nginx:latest
+
+    - name: Apply k8s Config
+      run: kubectl apply -f k8s -n chelsea
